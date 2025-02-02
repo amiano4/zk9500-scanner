@@ -9,8 +9,10 @@ import javafx.stage.Stage;
 
 import java.io.IOException;
 import java.net.http.HttpResponse;
+import java.util.List;
 
 import com.dustinredmond.fxtrayicon.FXTrayIcon;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparkcleancebu.http_helper.FormData;
 import com.sparkcleancebu.http_helper.HttpClientHelper;
 import com.sparkcleancebu.zk9500.FingerprintReader;
@@ -23,37 +25,70 @@ import com.sparkcleancebu.zk9500.ReadEventListener;
 public class App extends Application implements ReadEventListener {
 	private FingerprintReader reader;
 	private UIController ui;
+	private final String configPath = "config.json";
+	private ConfigReader config;
 
     @Override
     public void start(Stage stage) throws IOException {    	
-    	FXMLLoader loader = new FXMLLoader(App.class.getResource("UI.fxml"));
-        Parent root = loader.load();
-        
-        HttpClientHelper.setBaseUrl("http://localhost:8000/");
-        HttpClientHelper.registeredHeaders.add("Accept", "application/json");
-        
-        this.ui = loader.getController();
-        
-        String icon = "icon.png";
-        
-        setIcon(stage, icon);
-        setUIActions(stage);
+    	try {
+    		config = new ConfigReader(configPath);
+         	// config.set("api_url", "http://localhost:8000/"); // set base url
+    		String baseUrl = config.get("api_url");
+             
+            HttpClientHelper.setBaseUrl(baseUrl);
+            HttpClientHelper.registeredHeaders.add("Accept", "application/json");
+    		
+    		CsrfToken.acquire();
+    		
+    		FXMLLoader loader = new FXMLLoader(App.class.getResource("UI.fxml"));
+            Parent root = loader.load();            
+            
+            this.ui = loader.getController();
+            
+            String icon = "icon.png";
+            
+            setIcon(stage, icon);
+            setUIData();
+            setUIActions(stage);
 
-        reader = new FingerprintReader();
-        reader.addReadEventListener(this);
+            this.reader = new FingerprintReader();
+            this.reader.addReadEventListener(this);
+            
+            Scene scene = new Scene(root);
+            stage.setTitle("Fingerprint Scanner App");
+            stage.setScene(scene);
+            stage.setResizable(false);
+            stage.show();
+    	} catch(Throwable e) {
+    		e.printStackTrace();
+    	}
+    }
+    
+    public void setUIData() throws Exception {
+        this.ui.urlField.setText(config.get("api_url"));
+        this.ui.populateBranchCodeDropdown();
         
-        Scene scene = new Scene(root);
-        stage.setTitle("Fingerprint Scanner App");
-        stage.setScene(scene);
-        stage.setResizable(false);
-        stage.show();
+        String currentBranchCode = config.get("branch");
+        
+        this.ui.branchCodeComboBox.setValue(currentBranchCode);
     }
     
     public void setUIActions(Stage stage) {
-      ui.cancelButton.setOnAction(event -> {
-    	  System.out.println("Window has been closed.");
-    	  stage.hide();
-      });
+    	// cancel
+    	this.ui.cancelButton.setOnAction(event -> {
+    		System.out.println("Window has been closed.");
+    		stage.hide();
+    	});
+    	
+    	// apply changes
+    	this.ui.applyButton.setOnAction(event -> {
+    		String url = this.ui.urlField.getText();
+    		String branch = this.ui.branchCodeComboBox.getValue();
+    		String username = this.ui.usernameField.getText();
+    		String password = this.ui.passwordField.getText();
+    		
+    		
+    	});
     }
     
     public void setIcon(Stage stage, String iconResource) {
@@ -95,7 +130,7 @@ public class App extends Application implements ReadEventListener {
     }
     
     public void exitApp() {
-    	reader.close();
+    	this.reader.close();
     	System.exit(0);
     }
 
