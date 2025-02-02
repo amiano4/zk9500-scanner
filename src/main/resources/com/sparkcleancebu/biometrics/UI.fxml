@@ -40,6 +40,7 @@
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.Font?>
 
 <VBox prefWidth="380.0" spacing="15.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.sparkcleancebu.biometrics.UIController">
   <children>
@@ -47,41 +48,53 @@
       <HBox prefWidth="300.0">
          <children>
             <Label prefHeight="32.0" prefWidth="80.0" text="API URL" HBox.hgrow="ALWAYS" />
-            <TextField id="urlField" fx:id="urlField" layoutY="32.0" prefHeight="32.0" promptText="Enter API URL" HBox.hgrow="ALWAYS" />
+            <TextField id="urlField" fx:id="urlField" layoutY="32.0" onAction="#handleUrlFieldAction" onKeyReleased="#handleUrlFieldAction" prefHeight="32.0" promptText="Enter the API endpoint for authentication" HBox.hgrow="ALWAYS" />
          </children>
       </HBox>
       <HBox prefWidth="300.0">
          <children>
             <Label prefHeight="32.0" prefWidth="80.0" text="Branch Code" HBox.hgrow="ALWAYS" />
-            <ComboBox id="branchCodeComboBox" fx:id="branchCodeComboBox" prefHeight="32.0" prefWidth="270.0" promptText="Select branch code" HBox.hgrow="ALWAYS" />
+            <VBox HBox.hgrow="ALWAYS">
+               <children>
+                  <ComboBox id="branchCodeComboBox" fx:id="branchCodeComboBox" onAction="#toggleApplyButton" prefHeight="32.0" prefWidth="270.0" promptText="Select the current branch" />
+                  <Label text="API URL must be set and verified first.">
+                     <VBox.margin>
+                        <Insets top="5.0" />
+                     </VBox.margin>
+                     <font>
+                        <Font name="System Italic" size="12.0" />
+                     </font>
+                  </Label>
+               </children>
+            </VBox>
          </children>
       </HBox>
-      <Label text="An authorized account is required to apply changes." textOverrun="CLIP" wrapText="true" VBox.vgrow="ALWAYS">
+      <Label text="You must be authorized to apply changes." textOverrun="CLIP" wrapText="true" VBox.vgrow="ALWAYS">
          <VBox.margin>
-            <Insets top="20.0" />
+            <Insets top="10.0" />
          </VBox.margin>
       </Label>
       <HBox prefWidth="300.0">
          <children>
             <Label prefHeight="32.0" prefWidth="80.0" text="Username" HBox.hgrow="ALWAYS" />
-            <TextField id="usernameField" fx:id="usernameField" prefHeight="32.0" promptText="Enter username" HBox.hgrow="ALWAYS" />
+            <TextField id="usernameField" fx:id="usernameField" onKeyTyped="#toggleApplyButton" prefHeight="32.0" promptText="Enter your authorized username" HBox.hgrow="ALWAYS" />
          </children>
       </HBox>
       <HBox prefWidth="300.0">
          <children>
             <Label prefHeight="32.0" prefWidth="80.0" text="Password" HBox.hgrow="ALWAYS" />
-            <PasswordField id="passwordField" fx:id="passwordField" prefHeight="32.0" promptText="Enter password" HBox.hgrow="ALWAYS" />
+            <PasswordField id="passwordField" fx:id="passwordField" onKeyTyped="#toggleApplyButton" prefHeight="32.0" promptText="Enter your account password" HBox.hgrow="ALWAYS" />
          </children>
       </HBox>
-      <Label fx:id="footerText" text="Clicking 'Apply' will save your changes and may affect the application's behavior." textOverrun="CLIP" wrapText="true">
+      <Label fx:id="footerText" text="Clicking 'Apply' will save your changes and may affect the scanner’s functionality." textOverrun="CLIP" wrapText="true">
          <VBox.margin>
-            <Insets top="20.0" />
+            <Insets top="10.0" />
          </VBox.margin>
       </Label>
       <HBox nodeOrientation="RIGHT_TO_LEFT" spacing="15.0">
          <children>
-            <Button id="applyButton" fx:id="applyButton" mnemonicParsing="false" prefHeight="25.0" prefWidth="84.0" text="Apply" />
-            <Button id="cancelButton" fx:id="cancelButton" mnemonicParsing="false" prefHeight="25.0" prefWidth="84.0" text="Cancel" />
+            <Button id="applyButton" fx:id="applyButton" disable="true" mnemonicParsing="false" prefHeight="25.0" prefWidth="84.0" text="Apply" />
+            <Button id="cancelButton" fx:id="cancelButton" cancelButton="true" mnemonicParsing="false" prefHeight="25.0" prefWidth="84.0" text="Cancel" />
          </children>
          <VBox.margin>
             <Insets bottom="10.0" top="10.0" />
