@@ -12,15 +12,12 @@ public class CsrfToken {
 		return token;
 	}
 
+	public static void resetToken() {
+		token = null;
+	}
+
 	public static String acquire() {
 		try {
-			String baseUrl = App.config.get("api_url");
-
-			// baseURL exists
-			if (baseUrl != null && !baseUrl.isEmpty()) {
-				HttpClientHelper.setBaseUrl(baseUrl);
-			}
-
 			if (token == null || token.isEmpty()) {
 				HttpResponse<String> response = HttpClientHelper.get("sanctum/csrf-cookie");
 

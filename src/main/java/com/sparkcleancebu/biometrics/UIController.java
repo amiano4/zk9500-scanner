@@ -90,6 +90,28 @@ public class UIController {
 //		scheduler.schedule(task, 5, TimeUnit.SECONDS);
 	}
 
+	public void successAlert(String title, String content) {
+		Alert alert = new Alert(AlertType.ERROR);
+		alert.setTitle("Success");
+		alert.setHeaderText(title);
+		alert.setContentText(content);
+
+		Image errorIcon = new Image(getClass().getResourceAsStream("success.png"));
+		Stage alertStage = (Stage) alert.getDialogPane().getScene().getWindow();
+		alertStage.getIcons().add(errorIcon);
+
+		Image errorGraphic = new Image(getClass().getResourceAsStream("success-graphic.png"));
+		ImageView imageView = new ImageView(errorGraphic);
+		imageView.setFitWidth(36);
+		imageView.setFitHeight(36);
+		imageView.setPreserveRatio(true);
+
+		alert.getDialogPane().setGraphic(imageView);
+
+		alert.showAndWait();
+
+	}
+
 	public HashMap<String, Object> getValues() {
 		String url = urlField.getText() != null ? urlField.getText().trim() : "";
 		String branch = branchCodeComboBox.getValue() != null ? branchCodeComboBox.getValue().trim() : "";

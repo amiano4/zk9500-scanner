@@ -3,9 +3,9 @@ package com.sparkcleancebu.biometrics;
 import java.net.http.HttpResponse;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import com.dustinredmond.fxtrayicon.FXTrayIcon;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sparkcleancebu.http_helper.FormData;
 import com.sparkcleancebu.http_helper.HttpClientHelper;
@@ -20,6 +20,7 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.image.Image;
 import javafx.stage.Stage;
+import javafx.stage.WindowEvent;
 
 /**
  * JavaFX App
@@ -35,15 +36,12 @@ public class App extends Application implements ReadEventListener {
 	public void start(Stage stage) throws Exception {
 		HttpClientHelper.registeredHeaders.add("Accept", "application/json");
 
-		CsrfToken.acquire();
-
 		FXMLLoader loader = new FXMLLoader(App.class.getResource("UI.fxml"));
 		Parent root = loader.load();
 
 		this.ui = loader.getController();
 
 		setIcon(stage, "icon.png");
-		setUIData();
 		setUIActions(stage);
 
 		this.reader = new FingerprintReader();
@@ -53,7 +51,7 @@ public class App extends Application implements ReadEventListener {
 		stage.setTitle("Fingerprint Scanner App");
 		stage.setScene(scene);
 		stage.setResizable(false);
-		stage.show();
+		// stage.show();
 	}
 
 	public void setUIData() {
@@ -63,52 +61,55 @@ public class App extends Application implements ReadEventListener {
 			// disable combo box since no data can be initialized
 			this.ui.resetAndDisableBranchCode();
 		} else {
+			HttpClientHelper.setBaseUrl(baseUrl);
+			CsrfToken.acquire();
+
 			// show URL
 			this.ui.urlField.setText(baseUrl);
 
-			// enable branch code combo box
-			this.ui.branchCodeComboBox.setDisable(false);
+			// fetch all branches
+			try {
+				HttpResponse<String> response = HttpClientHelper.get("api/java-endpoint/branches");
 
-			String assignedBranch = config.get("branch");
+				ObjectMapper objectMapper = new ObjectMapper();
 
-			// no branch has been selected yet
-			if (assignedBranch == null || assignedBranch.isEmpty()) {
-				// fetch all branches
-				try {
-					CsrfToken.acquire();
+				@SuppressWarnings("unchecked")
+				List<String> branchList = objectMapper.readValue(response.body(), List.class);
 
-					HttpResponse<String> response = HttpClientHelper.get("api/java-endpoint/branches");
+				// enable branch code combo box
+				this.ui.branchCodeComboBox.setDisable(false);
 
-					ObjectMapper objectMapper = new ObjectMapper();
+				this.ui.branchCodeComboBox.setItems(FXCollections.observableArrayList(branchList));
 
-					@SuppressWarnings("unchecked")
-					List<String> branchList = objectMapper.readValue(response.body(), List.class);
-
-					this.ui.branchCodeComboBox.setItems(FXCollections.observableArrayList(branchList));
-
-					App.hasBranchList = true;
-
-				} catch (Exception e) {
-					// reset
-					this.ui.branchCodeComboBox.setValue(null);
-					this.ui.branchCodeComboBox.setDisable(true);
-					this.ui.branchCodeComboBox.getItems().clear();
-
-					e.printStackTrace();
-				}
-			} else {
+				String assignedBranch = config.get("branch");
 				this.ui.branchCodeComboBox.setValue(assignedBranch);
+
+				App.hasBranchList = true;
+			} catch (Exception e) {
+				// reset
+				this.ui.branchCodeComboBox.setValue(null);
+				this.ui.branchCodeComboBox.setDisable(true);
+				this.ui.branchCodeComboBox.getItems().clear();
+
+				e.printStackTrace();
 			}
 		}
 	}
 
 	public void setUIActions(Stage stage) {
+		stage.setOnCloseRequest(event -> {
+			this.ui.clearCredentialsFields();
+			System.out.println("Window was closed");
+		});
+
+		stage.setOnShowing(event -> {
+			setUIData();
+			System.out.println("Opening window...");
+		});
+
 		// cancel
 		this.ui.cancelButton.setOnAction(event -> {
-			this.ui.clearCredentialsFields();
-
-			System.out.println("Window has been closed.");
-			stage.hide();
+			stage.fireEvent(new WindowEvent(stage, WindowEvent.WINDOW_CLOSE_REQUEST));
 		});
 
 		// apply button
@@ -123,56 +124,89 @@ public class App extends Application implements ReadEventListener {
 				throw new Exception("Incomplete form: unable to proceed.");
 			}
 
+			String newUrl = values.get("url").toString().trim();
+			String oldUrl = config.get("api_url");
+			String branch = values.get("branch").toString();
+			boolean urlHasChanged = false;
+
 			/**
-			 * Branch list has not been initialized and no selected branch This could mean
-			 * the current thread is a fresh setup
-			 * 
-			 * step 1: verify the API URL by acquiring a csrf-token step 2: verify
-			 * credentials provided step 3: finalize
+			 * Test and verify the new URL. Only proceed to test if there are changes on the
+			 * string.
 			 */
-			if (!App.hasBranchList && values.get("branch").toString().isEmpty()) {
-				String url = values.get("url").toString();
+			if ((oldUrl == null || oldUrl.isEmpty()) || !newUrl.equalsIgnoreCase(oldUrl)) {
+				// set as base URL
+				HttpClientHelper.setBaseUrl(newUrl);
 
-				// step 1
-				// set base URL
-				HttpClientHelper.setBaseUrl(url);
+				try {
+					CsrfToken.resetToken();
 
-				// acquire token
-				String token = CsrfToken.acquire();
+					// acquire new token
+					String token = CsrfToken.acquire();
 
-				if (token == null || token.isEmpty()) {
-					throw new IllegalStateException("Invalid URL.");
-				}
-
-				FormData formData = new FormData();
-				formData.append("username", values.get("username").toString());
-				formData.append("password", values.get("password").toString());
-
-				HttpResponse<String> response = HttpClientHelper.post("api/java-endpoint/verify", formData);
-
-				System.out.println(response.body());
-
-				// save the URL to the config file
-//				config.set("api_url", url);
-
-			} else {
-				FormData formData = new FormData();
-
-				for (Map.Entry<String, Object> entry : values.entrySet()) {
-					String key = entry.getKey();
-					Object value = entry.getValue();
-
-					if (!key.equals("isValid")) {
-						// save key-value except the optional isValid property
-						formData.append(key, (String) value);
+					if (token == null || token.isEmpty()) {
+						throw new IllegalStateException("Invalid URL " + newUrl);
 					}
+
+					urlHasChanged = true;
+				} catch (Exception e) {
+					if (oldUrl != null && !oldUrl.isEmpty()) {
+						// revert change
+						HttpClientHelper.setBaseUrl(oldUrl);
+					}
+
+					throw e;
+				}
+			} else {
+				// invoke token requirement just in case
+				CsrfToken.acquire();
+			}
+
+			/**
+			 * URL is verified. Proceed with the authentication.
+			 */
+			FormData formData = new FormData();
+			formData.append("username", values.get("username").toString());
+			formData.append("password", values.get("password").toString());
+
+			// include branch code if present
+			if (branch != null || !branch.isEmpty()) {
+				formData.append("branch", branch);
+			}
+
+			HttpResponse<String> response = HttpClientHelper.post("api/java-endpoint/apply", formData);
+
+			// error response
+			if (response.statusCode() != 200) {
+				ObjectMapper objectMapper = new ObjectMapper();
+
+				JsonNode json = objectMapper.readTree(response.body());
+
+				String errorMessage = json.get("message").asText();
+				errorMessage = errorMessage == null || errorMessage.isEmpty() ? "Unable to process your request."
+						: errorMessage;
+
+				throw new Exception(errorMessage);
+			} else {
+				System.out.println("Response: " + response.body());
+
+				if (urlHasChanged) {
+					// save the URL to the configuration file
+					config.set("api_url", newUrl);
+
+					// initialize data (for new setup)
+					setUIData();
 				}
 
-				System.out.println(formData.toString());
+				if (branch != null || !branch.isEmpty()) {
+					config.set("branch", branch);
+				}
+
+				this.ui.successAlert("Saved!", "Changes has been applied.");
+				this.ui.clearCredentialsFields();
 			}
 		} catch (Exception e) {
 			this.ui.showError("An error has occured", e.getMessage());
-			e.printStackTrace();
+			// e.printStackTrace();
 		}
 	}
 
