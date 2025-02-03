@@ -169,7 +169,7 @@ public class App extends Application implements ReadEventListener {
 			formData.append("password", values.get("password").toString());
 
 			// include branch code if present
-			if (branch != null || !branch.isEmpty()) {
+			if (branch != null && !branch.isEmpty()) {
 				formData.append("branch", branch);
 			}
 
@@ -197,7 +197,7 @@ public class App extends Application implements ReadEventListener {
 					setUIData();
 				}
 
-				if (branch != null || !branch.isEmpty()) {
+				if (branch != null && !branch.isEmpty()) {
 					config.set("branch", branch);
 				}
 
