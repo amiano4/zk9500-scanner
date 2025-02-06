@@ -25,3 +25,4 @@ Thumbs.db
 
 # ignore generated-image file
 fingerprint.bmp
+dependency-reduced-pom.xml
