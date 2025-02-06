@@ -1,62 +1,66 @@
 package com.sparkcleancebu.biometrics;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
-import java.util.HashMap;
-import java.util.Map;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-
+import java.util.Properties;
+import java.util.Set;
 
 public class ConfigReader {
-    private Map<String, String> config;
-    private String filePath;
+	private Properties properties = new Properties();
+	private String filePath;
 
-    @SuppressWarnings("unchecked")
-    public ConfigReader(String filePath) {
-        this.filePath = filePath;
-        ObjectMapper objectMapper = new ObjectMapper();
-        File file = new File(filePath);
+	public ConfigReader(String fileName) throws IOException { // Use fileName, not filePath
+		String appDir = System.getProperty("APPDIR");
 
-        try {
-            // Ensure parent directories exist
-            File parentDir = file.getParentFile();
-            if (parentDir != null && !parentDir.exists()) {
-                parentDir.mkdirs();
-            }
+		if (appDir == null || appDir.isEmpty()) { // Check for null or empty
+			// Handle the case where APPDIR is not set (e.g., use current directory)
+			appDir = "."; // Or "./config" if you have a dedicated config folder
+			System.out.println("APPDIR not set, using default: " + appDir);
+		}
 
-            // Create file if it does not exist
-            if (!file.exists()) {
-                Files.write(file.toPath(), "{}".getBytes(), StandardOpenOption.CREATE);
-            }
+		File dir = new File(appDir); // Create a File object for the directory
+		if (!dir.exists()) {
+			if (!dir.mkdirs()) { // Use mkdirs() to create parent directories
+				throw new IOException("Failed to create application directory: " + appDir);
+			}
+		}
 
-            // Read and parse the JSON file
-            this.config = objectMapper.readValue(file, Map.class);
-        } catch (IOException e) {
-            e.printStackTrace();
-            this.config = new HashMap<>(); // Use an empty map if file read fails
-        }
-    }
+		this.filePath = new File(dir, fileName).getAbsolutePath(); // Use File constructor for path
 
-    public String get(String key) {
-        return (this.config != null) ? this.config.getOrDefault(key, null) : null;
-    }
+		File file = new File(this.filePath);
 
-    public void set(String key, String value) {
-        // Update the in-memory map
-        if (this.config != null) {
-            this.config.put(key, value);
-        }
+		if (!file.exists()) {
+			System.out.println("Config file not found. Creating default config...");
+			Properties defaultProps = new Properties();
 
-        // Write the updated map to the config.json file
-        try {
-            ObjectMapper objectMapper = new ObjectMapper();
-            // Write the map as JSON to the file
-            objectMapper.writeValue(new File(filePath), this.config);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
+			try (FileOutputStream fos = new FileOutputStream(file)) {
+				defaultProps.store(fos, "Default Config File");
+			}
+
+		}
+
+		try (FileInputStream fis = new FileInputStream(file)) {
+			properties.load(fis);
+		}
+	}
+
+	public String get(String key) {
+		return properties.getProperty(key, "KEY_NOT_FOUND");
+	}
+
+	public Set<String> getAllKeys() {
+		return properties.stringPropertyNames();
+	}
+
+	public void set(String key, String value) {
+		this.properties.setProperty(key, value);
+	}
+
+	public void save() throws IOException { // Add a save method
+		try (FileOutputStream fos = new FileOutputStream(new File(this.filePath))) {
+			properties.store(fos, "Updated Config File");
+		}
+	}
 }
