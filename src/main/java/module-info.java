@@ -14,5 +14,7 @@ module com.sparkcleancebu.zk9500_tray_app {
 
 	opens com.sparkcleancebu.zk9500_tray_app to javafx.fxml;
 
+	opens com.sparkcleancebu.zk9500_tray_app.controllers to javafx.fxml;
+
 	exports com.sparkcleancebu.zk9500_tray_app;
 }
