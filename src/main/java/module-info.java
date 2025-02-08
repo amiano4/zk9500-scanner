@@ -1,14 +1,18 @@
-module com.sparkcleancebu.biometrics {
-    requires javafx.controls;
-    requires javafx.fxml;
-	requires com.dustinredmond.fxtrayicon;
-	requires java.desktop;
-	requires ZKFingerReader;
-	requires java.net.http;
-	requires com.fasterxml.jackson.databind;
-	requires javafx.base;
+module com.sparkcleancebu.zk9500_tray_app {
+	requires javafx.controls;
+	requires javafx.fxml;
 	requires javafx.graphics;
+	requires java.desktop;
+	requires com.dustinredmond.fxtrayicon;
+	requires org.json;
+	requires jakarta.websocket.client;
+	requires java.net.http;
+	requires ZKFingerReader;
+	requires com.auth0.jwt;
+	requires javafx.base;
+	requires httpflux;
 
-    opens com.sparkcleancebu.biometrics to javafx.fxml;
-    exports com.sparkcleancebu.biometrics;
+	opens com.sparkcleancebu.zk9500_tray_app to javafx.fxml;
+
+	exports com.sparkcleancebu.zk9500_tray_app;
 }

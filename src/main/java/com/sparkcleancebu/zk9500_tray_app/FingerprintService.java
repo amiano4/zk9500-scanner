@@ -1,13 +1,15 @@
-package com.sparkcleancebu.zk9500;
+package com.sparkcleancebu.zk9500_tray_app;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EventListener;
+import java.util.EventObject;
 import java.util.List;
 
 import com.zkteco.biometric.FingerprintSensorErrorCode;
 import com.zkteco.biometric.FingerprintSensorEx;
 
-public class FingerprintReader implements AutoCloseable {
+public class FingerprintService implements AutoCloseable {
 	private long mhDevice = 0;
 	private boolean mbStop = true;
 	private int nFakeFunOn = 1;
@@ -25,7 +27,7 @@ public class FingerprintReader implements AutoCloseable {
 
 	private List<ReadEventListener> listeners = new ArrayList<>();
 
-	public FingerprintReader(boolean renderImage) {
+	public FingerprintService(boolean renderImage) {
 		try {
 			this.renderImage = renderImage;
 			init();
@@ -34,7 +36,7 @@ public class FingerprintReader implements AutoCloseable {
 		}
 	}
 
-	public FingerprintReader() {
+	public FingerprintService() {
 		try {
 			init();
 		} catch (Throwable e) {
@@ -266,7 +268,7 @@ public class FingerprintReader implements AutoCloseable {
 
 					String strBase64 = FingerprintSensorEx.BlobToBase64(template, templateLen[0]);
 
-					ReadEvent readEvt = new ReadEvent(this, strBase64, ret);
+					ReadEvent readEvt = new ReadEvent(this, strBase64, ret, template);
 
 					triggerReadEvents(readEvt);
 				}
@@ -278,5 +280,35 @@ public class FingerprintReader implements AutoCloseable {
 				}
 			}
 		}
+	}
+
+	@SuppressWarnings("serial")
+	public static class ReadEvent extends EventObject {
+		private String base64Template;
+		private int retValue;
+		private byte[] template = new byte[2048];
+
+		public ReadEvent(Object src, String base64, int retValue, byte[] temp) {
+			super(src);
+			this.base64Template = base64;
+			this.retValue = retValue;
+			this.template = temp;
+		}
+
+		public String getBase64Template() {
+			return this.base64Template;
+		}
+
+		public int getRetValue() {
+			return this.retValue;
+		}
+
+		public byte[] getTemplate() {
+			return this.template;
+		}
+	}
+
+	public static interface ReadEventListener extends EventListener {
+		void readEventOccured(ReadEvent event);
 	}
 }

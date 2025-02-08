@@ -2,7 +2,7 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.sparkcleancebu</groupId>
-    <artifactId>biometrics</artifactId>
+    <artifactId>zk9500-tray-app</artifactId>
     <version>1.0</version>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -20,16 +20,51 @@
             <artifactId>javafx-fxml</artifactId>
             <version>23.0.2</version>
         </dependency>
+        
         <dependency>
 		  	<groupId>com.dustinredmond.fxtrayicon</groupId>
 		  	<artifactId>FXTrayIcon</artifactId>
 		  	<version>4.2.0</version>
 		</dependency>
+		
 		<dependency>
-		    <groupId>com.fasterxml.jackson.core</groupId>
-		    <artifactId>jackson-databind</artifactId>
-		    <version>2.17.0</version>
+		    <groupId>org.json</groupId>
+		    <artifactId>json</artifactId>
+		    <version>20230227</version>
+	    </dependency>
+
+	    <!-- Jakarta WebSocket API -->
+	    <dependency>
+	        <groupId>jakarta.websocket</groupId>
+	        <artifactId>jakarta.websocket-api</artifactId>
+	        <version>2.1.0</version>
+	        <scope>provided</scope>
+	    </dependency>
+	
+	    <!-- Tyrus WebSocket Client (Reference Implementation) -->
+	    <dependency>
+	        <groupId>org.glassfish.tyrus</groupId>
+	        <artifactId>tyrus-client</artifactId>
+	        <version>2.1.2</version>
+	    </dependency>
+	
+	    <!-- Tyrus Container Implementation -->
+	    <dependency>
+	        <groupId>org.glassfish.tyrus</groupId>
+	        <artifactId>tyrus-container-grizzly-client</artifactId>
+	        <version>2.1.2</version>
+	    </dependency>
+	    
+	    <dependency>
+		    <groupId>com.auth0</groupId>
+		    <artifactId>java-jwt</artifactId>
+		    <version>4.4.0</version>
 		</dependency>
+	    <dependency>
+	    	<groupId>com.sparkcleancebu</groupId>
+	    	<artifactId>biometrics</artifactId>
+	    	<version>1.0</version>
+	    </dependency>
     </dependencies>
     <build>
         <plugins>
@@ -51,7 +86,7 @@
                         <!-- Usage: mvn clean javafx:run -->
                         <id>default-cli</id>
                         <configuration>
-                            <mainClass>com.sparkcleancebu.biometrics.App</mainClass>
+                            <mainClass>com.sparkcleancebu.zk9500_tray_app.App</mainClass>
                         </configuration>
                     </execution>
                 </executions>
