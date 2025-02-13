@@ -9,11 +9,12 @@ import java.util.List;
 import com.zkteco.biometric.FingerprintSensorErrorCode;
 import com.zkteco.biometric.FingerprintSensorEx;
 
-public class FingerprintService implements AutoCloseable {
+public class FingerprintService {
 	private long mhDevice = 0;
 	private boolean mbStop = true;
 	private int nFakeFunOn = 1;
 	private boolean renderImage = false;
+	private boolean allowEvents = false;
 
 	private int[] templateLen = new int[1];
 
@@ -27,54 +28,56 @@ public class FingerprintService implements AutoCloseable {
 
 	private List<ReadEventListener> listeners = new ArrayList<>();
 
-	public FingerprintService(boolean renderImage) {
+	public FingerprintService(boolean renderImage) throws AppException.ScannerInitializationException {
+		this.renderImage = renderImage;
+		init();
+	}
+
+	public FingerprintService() throws AppException.ScannerInitializationException {
+		init();
+	}
+
+	public void open(CustomCallbackWithException callback) {
 		try {
-			this.renderImage = renderImage;
-			init();
-		} catch (Throwable e) {
-			e.printStackTrace();
+			allowEvents = true;
+			callback.run();
+		} catch (Exception e) {
+			App.Notif.error(e.getMessage());
+			App.closeWindow();
 		}
 	}
 
-	public FingerprintService() {
-		try {
-			init();
-		} catch (Throwable e) {
-			e.printStackTrace();
-		}
-	}
-
-	private void init() {
+	private void init() throws AppException.ScannerInitializationException {
 		int ret = FingerprintSensorErrorCode.ZKFP_ERR_OK;
 
 		// Initialize sensor
 		ret = FingerprintSensorEx.Init();
 		if (ret != FingerprintSensorErrorCode.ZKFP_ERR_OK) {
-			throw new IllegalStateException("FingerprintSensor class failed to initialize");
+			throw new AppException.ScannerInitializationException(
+					"Unable to initialize scanner resources. Please check the device connection.");
 		}
 
 		// Check device count
 		int count = FingerprintSensorEx.GetDeviceCount();
 		if (count < 1) {
 			FreeSensor();
-			throw new IllegalStateException("No devices connected!");
+			throw new AppException.ScannerInitializationException("No device(s) connected");
 		}
 
-		// Open the device
 		mhDevice = FingerprintSensorEx.OpenDevice(0);
+
 		if (mhDevice == 0) {
 			FreeSensor();
-			throw new IllegalStateException("Failed to open fingerprint device");
+			throw new AppException.ScannerInitializationException("Failed to open fingerprint device");
 		}
 
 		mbStop = false;
+		allowEvents = false;
 
 		setImageBuffer();
 
 		workThread = new WorkThread();
 		workThread.start();
-
-		System.out.println("Device count: " + count);
 	}
 
 	private void FreeSensor() {
@@ -143,12 +146,9 @@ public class FingerprintService implements AutoCloseable {
 		}
 	}
 
-	@Override
 	public void close() {
-		if (mhDevice != 0) {
-			FreeSensor();
-			System.out.println("Sensor device has been closed.");
-		}
+		allowEvents = false;
+		FreeSensor();
 	}
 
 	public static byte[] changeByte(int data) {
@@ -238,13 +238,6 @@ public class FingerprintService implements AutoCloseable {
 			int ret = 0;
 
 			while (!mbStop) {
-
-				if (mhDevice == 0) {
-					mbStop = true;
-					System.err.println("Device handle not initialized. Exiting thread...");
-					break;
-				}
-
 				templateLen[0] = 2048;
 
 				if (0 == (ret = FingerprintSensorEx.AcquireFingerprint(mhDevice, imgBuffer, template, templateLen))) {
@@ -270,7 +263,9 @@ public class FingerprintService implements AutoCloseable {
 
 					ReadEvent readEvt = new ReadEvent(this, strBase64, ret, template);
 
-					triggerReadEvents(readEvt);
+					if (allowEvents) {
+						triggerReadEvents(readEvt);
+					}
 				}
 
 				try {
@@ -310,5 +305,10 @@ public class FingerprintService implements AutoCloseable {
 
 	public static interface ReadEventListener extends EventListener {
 		void readEventOccured(ReadEvent event);
+	}
+
+	@FunctionalInterface
+	public static interface CustomCallbackWithException {
+		void run() throws Exception;
 	}
 }

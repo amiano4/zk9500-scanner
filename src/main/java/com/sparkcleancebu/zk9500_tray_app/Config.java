@@ -5,13 +5,21 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Properties;
+import java.util.UUID;
 
 public class Config {
 	private Properties properties = new Properties();
 	private String filePath;
 
-	public Config(String fileName) throws Exception {
+	public Config(String fileName) throws AppException.ConfigException {
+		try {
+			init(fileName);
+		} catch (Exception e) {
+			throw new AppException.ConfigException("Config init failed", e);
+		}
+	}
 
+	private void init(String fileName) throws Exception {
 		String appDir = System.getProperty("APPDIR");
 
 		if (appDir == null || appDir.isEmpty()) { // Check for null or empty
@@ -29,7 +37,7 @@ public class Config {
 
 		this.filePath = new File(dir, fileName).getAbsolutePath(); // Use File constructor for path
 
-		File file = new File(this.filePath);
+		File file = new File(filePath);
 
 		if (!file.exists()) {
 			System.out.println("Config file not found. Creating default config...");
@@ -45,32 +53,97 @@ public class Config {
 		}
 	}
 
-	public String get(String key) throws Exception {
+	private String get(String key) {
 		String prop = properties.getProperty(key, null);
-
-		if (prop == null || prop.trim().isEmpty()) {
-			return null;
-		}
-
-		return prop;
+		return prop == null || prop.trim().isEmpty() ? null : prop;
 	}
 
-	public void set(String key, String value) throws Exception {
+	private void set(String key, String value) {
+		properties.setProperty(key, value == null ? "" : value);
+	}
+
+	private String generateLocalID() throws AppException.ConfigException {
 		try {
-			this.properties.setProperty(key, value);
+			String id = uuid();
+			set(App.CONF_LOCALID, id);
+			save();
+			return id;
 		} catch (Exception e) {
-			throw new Exception("Unable to set property because " + key + " is " + value);
+			throw new AppException.ConfigException("Error while generating local ID", e);
 		}
 	}
 
-	public void save() throws IOException {
-		try (FileOutputStream fos = new FileOutputStream(new File(this.filePath))) {
+	public void save() throws AppException.ConfigException {
+		try (FileOutputStream fos = new FileOutputStream(new File(filePath))) {
 			properties.store(fos, "Updated Config File");
+		} catch (Exception e) {
+			throw new AppException.ConfigException("Error in saving configurations", e);
 		}
 	}
 
-	public void clear() throws IOException {
-		this.properties.clear();
-		this.save();
+	public void reset() throws AppException.ConfigException {
+		properties.clear();
+		save();
+	}
+
+	public static String uuid() {
+		return UUID.randomUUID().toString().replace("-", "");
+	}
+
+	/**
+	 * Setters and Getters
+	 */
+
+	public String getAppID() {
+		return this.get(App.CONF_APPID);
+	}
+
+	public void setAppID(String id) {
+		this.set(App.CONF_APPID, id);
+	}
+
+	public String getLocalID() throws AppException.ConfigException {
+		String id = get(App.CONF_LOCALID);
+		return id == null ? generateLocalID() : id;
+	}
+
+	public String getBranch() {
+		return get(App.CONF_BRANCH);
+	}
+
+	public void setBranch(String branch) {
+		set(App.CONF_BRANCH, branch);
+	}
+
+	public String getHost() {
+		return get(App.CONF_HOST);
+	}
+
+	public void setHost(String host) {
+		set(App.CONF_HOST, host);
+	}
+
+	public String getSocketUrl() {
+		return get(App.CONF_SOCKET);
+	}
+
+	public void setSocketUrl(String url) {
+		set(App.CONF_SOCKET, url);
+	}
+
+	public void setVerifiedAt(String value) {
+		set(App.CONF_VERIFIED_AT, value);
+	}
+
+	public String getVerifiedAt() {
+		return get(App.CONF_VERIFIED_AT);
+	}
+
+	public void setName(String name) {
+		set(App.CONF_NAME, name);
+	}
+
+	public String getName() {
+		return get(App.CONF_NAME);
 	}
 }
