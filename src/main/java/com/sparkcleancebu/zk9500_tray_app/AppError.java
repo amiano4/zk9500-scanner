@@ -10,7 +10,7 @@ public class AppError {
 			// scanner related
 			App.closeWindow();
 			App.Notif.error(errorMessage);
-			App.exit();
+			App.exitApp();
 		} else if (ex instanceof AppException.ConfigException) {
 			// config file
 			App.Notif.error(errorMessage);

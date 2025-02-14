@@ -1,11 +1,9 @@
 package com.sparkcleancebu.zk9500_tray_app;
 
+import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 import java.util.function.Consumer;
 
 import org.json.JSONObject;
@@ -24,44 +22,47 @@ import jakarta.websocket.WebSocketContainer;
 @SuppressWarnings("exports")
 public class SocketClient {
 	private Session session;
-	private URI uri;
 	private WebSocketContainer container;
 
-	private final Set<Channel> channels = new HashSet<>();
+	private final URI uri;
+	private final String channel;
 	private final Map<String, Consumer<JSONObject>> events = new HashMap<>();
+	private boolean disconnected;
 
-	public SocketClient(URI uri) throws Exception {
+	public SocketClient(URI uri, String channel) throws Exception {
 		this.uri = uri;
+		this.channel = channel;
 		this.container = ContainerProvider.getWebSocketContainer();
-		connect();
-	}
+		this.disconnected = false;
 
-	private void connect() throws Exception {
-		System.out.println("Connecting to WebSocket server...");
 		container.connectToServer(this, uri);
+		subscribe();
 	}
 
 	@OnOpen
 	public void onOpen(Session session) {
 		this.session = session;
-		System.out.println("Connecting to WebSocket server...");
 
 		// initialize pre-defined events
 		// connected successfully
 		this.listen("pusher:connection_established", data -> {
-			System.out.println("Connection established with socket ID: " + data.getJSONObject("data").get("socket_id"));
+			System.out.println("Connected to websocket server");
+			System.out.println("Socket ID: " + data.getJSONObject("data").get("socket_id"));
 		});
 
 		// subscribed to a channel
 		this.listen("pusher_internal:subscription_succeeded", data -> {
-			String channel = data.getString("channel");
-			System.out.println("Subscribing to channel: " + channel);
+			String channelName = data.getString("channel");
+
+			if (channel == channelName) {
+				System.out.println("Successfully subscribed to the channel");
+			}
 		});
 
 		// server ping
 		this.listen("pusher:ping", data -> {
 			try {
-				send("pusher:pong");
+				send("pusher:pong", null);
 				System.out.println("Sent Pong Response!");
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -108,44 +109,24 @@ public class SocketClient {
 		attemptReconnect();
 	}
 
-	public Channel subscribe(String channelName) throws Exception {
-		return subscribe(new Channel(this, channelName));
-	}
-
-	public Channel subscribe(Channel channel) throws Exception {
-		String channelName = channel.getName();
-
-		if (!channels.contains(channel)) {
-			if (this.session != null && this.session.isOpen()) {
-				send("pusher:subscribe", new JSONObject(), channelName);
-				channels.add(channel);
-			} else {
-				throw new Exception("WebSocket session is not open. Cannot subscribe to channel: " + channelName);
-			}
-		} else {
-			System.out.println("Already subscribed to channel: " + channelName);
-		}
-
+	public String getChannel() {
 		return channel;
 	}
 
-	public void unsubscribe(String channelName) throws Exception {
-		unsubscribe(new Channel(this, channelName));
+	private void subscribe() throws Exception {
+		if (this.session != null && this.session.isOpen()) {
+			send("pusher:subscribe", null);
+		} else {
+			throw new Exception("WebSocket session is not open. Unable to subscribe.");
+		}
 	}
 
-	public void unsubscribe(Channel channel) throws Exception {
-		String channelName = channel.getName();
-
-		if (channels.contains(channel)) {
-			if (this.session != null && this.session.isOpen()) {
-				send("pusher:unsubscribe", null, channelName);
-				channels.remove(channel);
-				System.out.println("Unsubscribed from channel: " + channelName);
-			} else {
-				throw new Exception("WebSocket session is not open. Cannot unsubscribe from channel: " + channelName);
-			}
+	public void unsubscribe() throws Exception {
+		if (this.session != null && this.session.isOpen()) {
+			send("pusher:unsubscribe", null);
+			System.out.println("Unsubscribed.");
 		} else {
-			System.out.println("Not subscribed to channel: " + channelName);
+			throw new Exception("WebSocket session is not open. Unnable to unsubscribe.");
 		}
 	}
 
@@ -153,19 +134,7 @@ public class SocketClient {
 		events.put(eventName, callback);
 	}
 
-	public Set<Channel> getSubscriptions() {
-		return new HashSet<>(channels);
-	}
-
-	public void send(String event) throws Exception {
-		send(event, null, null);
-	}
-
-	public void send(String event, JSONObject data) throws Exception {
-		send(event, data, null);
-	}
-
-	public void send(String event, JSONObject data, String channel) throws Exception {
+	private void send(String event, JSONObject data) throws Exception {
 		JSONObject content = new JSONObject();
 		content.put("event", event);
 
@@ -175,73 +144,42 @@ public class SocketClient {
 
 		if (channel != null && !channel.trim().isEmpty()) {
 			data.put("channel", channel);
-			content.put("data", data);
 		}
+
+		content.put("data", data);
 
 		this.session.getBasicRemote().sendText(content.toString());
 	}
 
 	private void attemptReconnect() {
+		if (disconnected) // manually disconnected
+			return;
+
 		try {
 			System.out.println("Attempting to reconnect...");
 
 			Thread.sleep(1000); // Wait
 
-			WebSocketContainer container = ContainerProvider.getWebSocketContainer();
+			container = ContainerProvider.getWebSocketContainer();
 			container.connectToServer(this, this.uri);
 			System.out.println("Reconnected successfully.");
 
-			// Re-subscribe to channels
-			for (Channel channel : channels) {
-				subscribe(channel);
-			}
+			// Re-subscribe to channel
+			subscribe();
 		} catch (Exception e) {
 			System.err.println("Reconnection failed: " + e.getMessage());
 		}
 	}
 
-	public static class Channel {
-		private final SocketClient client;
-		private final String name;
-
-		public Channel(SocketClient client, String name) {
-			this.client = client;
-			this.name = name;
-		}
-
-		public SocketClient getClient() {
-			return this.client;
-		}
-
-		public String getName() {
-			return this.name;
-		}
-
-		public void listen(String eventName, Consumer<JSONObject> callback) {
-			client.listen(eventName, callback);
-		}
-
-		public void send(String event) throws Exception {
-			client.send(event, null, name);
-		}
-
-		public void send(String event, JSONObject data) throws Exception {
-			client.send(event, data, name);
-		}
-
-		@Override
-		public boolean equals(Object obj) {
-			if (this == obj)
-				return true;
-			if (obj == null || getClass() != obj.getClass())
-				return false;
-			Channel that = (Channel) obj;
-			return Objects.equals(name, that.name) && Objects.equals(client, that.client);
-		}
-
-		@Override
-		public int hashCode() {
-			return Objects.hash(name, client);
+	public void disconnect() {
+		if (session != null && session.isOpen()) {
+			try {
+				disconnected = true;
+				session.close(new CloseReason(CloseReason.CloseCodes.NORMAL_CLOSURE, "Client disconnected"));
+				System.out.println("WebSocket disconnected successfully.");
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 		}
 	}
 }

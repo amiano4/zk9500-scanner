@@ -27,9 +27,6 @@ public class FXML_Details_Controller {
 	private Label lastScan;
 
 	@FXML
-	private Label channelId;
-
-	@FXML
 	public void initialize() {
 		debugging.setText(null);
 		name.setText(null);
@@ -38,7 +35,6 @@ public class FXML_Details_Controller {
 		registeredAt.setText(null);
 		host.setText(null);
 		lastScan.setText(null);
-		channelId.setText(null);
 	}
 
 	public void display(Config config) throws Exception {
@@ -58,12 +54,6 @@ public class FXML_Details_Controller {
 	public void scan(String content) {
 		Platform.runLater(() -> {
 			lastScan.setText(content);
-		});
-	}
-
-	public void channel(String value) {
-		Platform.runLater(() -> {
-			channelId.setText(value);
 		});
 	}
 }

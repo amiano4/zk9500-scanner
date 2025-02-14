@@ -31,8 +31,11 @@ public class App extends Application implements FingerprintService.ReadEventList
 	public static final String CONF_VERIFIED_AT = "VERIFIED_AT";
 	public static final String CONF_NAME = "NAME";
 
-	public static final String URI_AUTH = "/api/java/auth";
-	public static String appID = null;
+	public static final String BASE_URL_PATH = "/api/java";
+	public static final String URI_AUTH = "/auth";
+
+	public static final String HEADER_APP = "SCANNER-APP";
+	public static final String HEADER_LOCAL = "SCANNER-LOCAL";
 
 	static boolean forExit = false;
 	static Scene scene;
@@ -45,8 +48,10 @@ public class App extends Application implements FingerprintService.ReadEventList
 
 	@Override
 	public void start(Stage stage) throws Exception {
-		App.stage = stage;
+		HttpService.setBaseUrl("");
+		HttpService.registeredHeaders.add("Accept", "application/json"); // accept json responses
 
+		App.stage = stage;
 		stage.setResizable(false);
 
 		try {
@@ -67,9 +72,6 @@ public class App extends Application implements FingerprintService.ReadEventList
 				scanner = new FingerprintService();
 				scanner.addReadEventListener(this);
 			}
-
-			// accept json responses
-			HttpService.registeredHeaders.add("Accept", "application/json");
 
 			Config config = new Config(CONFIG_FILENAME);
 			String appID = config.getAppID();
@@ -148,7 +150,6 @@ public class App extends Application implements FingerprintService.ReadEventList
 	public static void closeWindow() {
 		Platform.runLater(() -> {
 			try {
-				Thread.sleep(500);
 				stage.close(); // close the window
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -161,15 +162,9 @@ public class App extends Application implements FingerprintService.ReadEventList
 			try {
 				FXMLLoader loader = new FXMLLoader(App.class.getResource("Details.fxml"));
 				Parent root = loader.load();
-				SocketClient.Channel channel = authenticator.getChannel();
 
 				ui = loader.getController();
 				ui.display(config);
-
-				if (channel != null) {
-					// display the channel id
-					ui.channel(channel.getName());
-				}
 
 				stage.close();
 
@@ -197,10 +192,14 @@ public class App extends Application implements FingerprintService.ReadEventList
 		try {
 			forExit = true;
 			closeWindow();
-			authenticator.getChannel().send(Authenticator.SOCKET_EVT_DISCONNECT);
+			authenticator.disconnect();
+
+			Thread.sleep(3000);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+
+		exitApp();
 	}
 
 	public static void exitApp() {
@@ -219,12 +218,21 @@ public class App extends Application implements FingerprintService.ReadEventList
 	}
 
 	public static void restartApp() {
-		forExit = false;
-
 		if (scanner != null) {
 			scanner.close();
-			scanner = null;
 		}
+
+		// disconnect from websockets first
+		SocketClient socket = authenticator.getSocketClient();
+		if (socket != null) {
+			socket.disconnect();
+		}
+
+		forExit = false;
+		scene = null;
+		authenticator = null;
+		scanner = null;
+		ui = null;
 
 		Platform.runLater(() -> {
 			try {

@@ -7,28 +7,24 @@ import org.json.JSONObject;
 
 import com.amiano4.httpflux.FormDataBuilder;
 import com.amiano4.httpflux.HttpService;
-import com.sparkcleancebu.zk9500_tray_app.SocketClient.Channel;
 
 import javafx.concurrent.Task;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 
 public class Authenticator {
-	public static final String SOCKET_EVT_CONNECT = "ScannerConnected";
+	public static final String SOCKET_EVT_CONNECT = "ScannerWentOnline";
 	public static final String SOCKET_EVT_DISCONNECT = "ScannerDisconnect";
+	public static final String SOCKET_EVT_FINGERPRINT_REGISTRATION = "FingerprintRegistration";
 
 	private String csrfToken = null;
 	private Config config;
 	private SocketClient socket;
-	private Channel authChannel;
-	private String channelID;
 	private Parent progressControllerRoot;
 
 	public Authenticator(Config config) throws Exception {
 		this.config = config;
 		this.socket = null;
-		this.authChannel = null;
-		this.channelID = null;
 	}
 
 	public void start(String appID) throws AppException.AuthenticationException {
@@ -53,12 +49,13 @@ public class Authenticator {
 			@Override
 			protected Void call() throws Exception {
 				try {
-					String url = config.getHost() + App.URI_AUTH;
 					String localID = config.getLocalID();
 
-					FormDataBuilder formData = new FormDataBuilder().append("localId", localID).append("appId", appID);
+					FormDataBuilder formData = new FormDataBuilder();
+					formData.append("localId", localID);
+					formData.append("appId", appID);
 
-					HttpService.post(url, formData).onSuccess((response) -> {
+					HttpService.post(App.URI_AUTH, formData).onSuccess((response) -> {
 						// display ui
 						App.showProgressDialog(progressControllerRoot);
 
@@ -76,18 +73,25 @@ public class Authenticator {
 							// Save configurations
 							config.setAppID(appID);
 							config.setBranch(json.getString("branch"));
-							config.setSocketUrl(json.getString("socket"));
 							config.setName(json.getString("name"));
 							config.setVerifiedAt(json.getString("verified"));
 							config.save();
 
-							updateProgress(0.8, 1);
+							updateProgress(0.7, 1);
 							updateMessage("Starting socket client...");
 
-							initSocketClient();
+							// set default headers (for api validation)
+							HttpService.registeredHeaders.add(App.HEADER_APP, appID);
+							HttpService.registeredHeaders.add(App.HEADER_LOCAL, localID);
+
+							updateProgress(0.8, 1);
+							updateMessage("Setting headers...");
+
+							// connect to websockets
+							initSocketClient(json.getString("socket"));
 						} catch (Exception e) {
 							AppError.handle(new AppException.AuthenticationException(
-									"An error occurred while syncing local configurations", e));
+									"An error has occurred while syncing local configurations", e));
 						}
 					}).onError(err -> {
 						if (err.getResponse() != null) {
@@ -114,13 +118,10 @@ public class Authenticator {
 			}
 
 			// Socket initialization here
-			private void initSocketClient() {
+			private void initSocketClient(String url) {
 				try {
-					String url = config.getSocketUrl();
-					channelID = config.getAppID() + "." + Config.uuid();
-
 					if (url == null) {
-						throw new IllegalStateException("Missing websocket client");
+						throw new IllegalStateException("Missing websocket server protocol");
 					}
 
 					URI uri = new URI(url);
@@ -128,8 +129,7 @@ public class Authenticator {
 					updateProgress(0.9, 1);
 					updateMessage("Starting websocket client...");
 
-					socket = new SocketClient(uri);
-					authChannel = socket.subscribe("scanner." + channelID);
+					socket = new SocketClient(uri, config.getAppID() + "." + config.getLocalID());
 
 					updateProgress(0.95, 1);
 					updateMessage("Subscribed to app channel");
@@ -139,8 +139,8 @@ public class Authenticator {
 					updateProgress(0.97, 1);
 					updateMessage("Testing connection...");
 
-					// Final step: server replies
-					authChannel.listen(SOCKET_EVT_CONNECT + ".pong", data -> {
+					// Final step: receiving server event after online status sent (pinged)
+					socket.listen(SOCKET_EVT_CONNECT, data -> {
 						updateProgress(1.0, 1);
 						updateMessage("Connected successfully!");
 
@@ -150,10 +150,14 @@ public class Authenticator {
 
 							if (App.scanner != null) {
 								App.scanner.open(() -> {
-									Thread.sleep(500);
 									updateMessage("Fingerprint scanner ready.");
+
 									App.closeWindow();
 									App.prepareDetailsDialog(config);
+
+									listenToEvents();
+
+									Thread.sleep(1000);
 									App.Notif.info("App is ready");
 								});
 							} else {
@@ -166,11 +170,10 @@ public class Authenticator {
 						}
 					});
 
-					authChannel.send(SOCKET_EVT_CONNECT + ".ping", new JSONObject());
-
-					// disconnection confirmation from the server
-					// to update the db status
-					authChannel.listen(SOCKET_EVT_DISCONNECT + ".ok", data -> App.exitApp());
+					// send http request to update db status
+					HttpService.get("/" + appID + "/online").onError(err -> {
+						AppError.handle(new AppException.ScannerInitializationException(err.getLocalizedMessage()));
+					}).executeSync();
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -189,6 +192,9 @@ public class Authenticator {
 		acquireCsrfToken(host);
 		config.setHost(host);
 		config.save();
+
+		// set base url
+		HttpService.setBaseUrl(host + App.BASE_URL_PATH);
 	}
 
 	private void acquireCsrfToken(String baseUrl) throws AppException.InvalidHostException {
@@ -233,7 +239,24 @@ public class Authenticator {
 		return csrfToken;
 	}
 
-	public Channel getChannel() {
-		return authChannel;
+	public SocketClient getSocketClient() {
+		return socket;
+	}
+
+	public void disconnect() throws Exception {
+		socket.disconnect();
+
+		// send disconnection update
+		HttpService.get("/" + config.getAppID() + "/offline").onError(err -> {
+			err.printStackTrace();
+		}).executeAsync();
+	}
+
+	public void listenToEvents() {
+		socket.listen(SOCKET_EVT_FINGERPRINT_REGISTRATION, data -> {
+			JSONObject d = data.getJSONObject("data").getJSONObject("data");
+
+			System.out.println(d.get("action"));
+		});
 	}
 }
