@@ -32,4 +32,26 @@ public class AppException {
 			super(message, cause);
 		}
 	}
+
+	// algorithm
+	public static class FingerprintException extends Exception {
+		public FingerprintException(String message) {
+			super(message);
+		}
+
+		public FingerprintException(String message, Throwable throwable) {
+			super(message, throwable);
+		}
+	}
+
+	// registration
+	public static class FingerprintRegistrationException extends Exception {
+		public FingerprintRegistrationException(String message) {
+			super(message);
+		}
+
+		public FingerprintRegistrationException(String message, Throwable throwable) {
+			super(message, throwable);
+		}
+	}
 }

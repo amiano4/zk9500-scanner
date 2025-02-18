@@ -16,6 +16,7 @@ public class Authenticator {
 	public static final String SOCKET_EVT_CONNECT = "ScannerWentOnline";
 	public static final String SOCKET_EVT_DISCONNECT = "ScannerDisconnect";
 	public static final String SOCKET_EVT_FINGERPRINT_REGISTRATION = "FingerprintRegistration";
+	public static final String SOCKET_EVT_REFRESH = "RefreshScannerLibrary";
 
 	private String csrfToken = null;
 	private Config config;
@@ -157,9 +158,14 @@ public class Authenticator {
 
 									listenToEvents();
 
-									Thread.sleep(1000);
+									try {
+										Thread.sleep(1000);
+									} catch (InterruptedException e) {
+										e.printStackTrace();
+									}
+
 									App.Notif.info("App is ready");
-								});
+								}, true);
 							} else {
 								App.closeWindow();
 								throw new AppException.ScannerInitializationException(
@@ -171,7 +177,7 @@ public class Authenticator {
 					});
 
 					// send http request to update db status
-					HttpService.get("/" + appID + "/online").onError(err -> {
+					HttpService.get("/online").onError(err -> {
 						AppError.handle(new AppException.ScannerInitializationException(err.getLocalizedMessage()));
 					}).executeSync();
 				} catch (Exception e) {
@@ -247,16 +253,33 @@ public class Authenticator {
 		socket.disconnect();
 
 		// send disconnection update
-		HttpService.get("/" + config.getAppID() + "/offline").onError(err -> {
+		HttpService.get("/offline").onError(err -> {
 			err.printStackTrace();
 		}).executeAsync();
 	}
 
 	public void listenToEvents() {
 		socket.listen(SOCKET_EVT_FINGERPRINT_REGISTRATION, data -> {
-			JSONObject d = data.getJSONObject("data").getJSONObject("data");
+			JSONObject mainData = data.getJSONObject("data");
+			String action = mainData.getString("action");
+			// String fingerType = mainData.getString("finger");
 
-			System.out.println(d.get("action"));
+			if (action.equals("start")) {
+				int fingerprintId = mainData.getInt("id");
+				System.out.println("registration started id: " + fingerprintId);
+
+				// start fingerprint registration process
+				App.library.startRegistration(fingerprintId);
+			}
+		});
+
+		// refresh data
+		socket.listen(SOCKET_EVT_REFRESH, data -> {
+			try {
+				App.library.initialize();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
 		});
 	}
 }

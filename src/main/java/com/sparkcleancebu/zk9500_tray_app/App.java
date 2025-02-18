@@ -1,9 +1,18 @@
 package com.sparkcleancebu.zk9500_tray_app;
 
 import java.io.File;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 
+import org.json.JSONObject;
+
+import com.amiano4.httpflux.FormDataBuilder;
 import com.amiano4.httpflux.HttpService;
 import com.dustinredmond.fxtrayicon.FXTrayIcon;
+import com.sparkcleancebu.zk9500_tray_app.Scanner.FingerprintEvent;
+import com.sparkcleancebu.zk9500_tray_app.Scanner.FingerprintListener;
 
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -18,10 +27,11 @@ import javafx.stage.Stage;
  * JavaFX App
  */
 @SuppressWarnings("exports")
-public class App extends Application implements FingerprintService.ReadEventListener {
+public class App extends Application implements FingerprintListener {
 	public static final String APP_NAME = "Biometrics App"; // default app name
 	public static final String APP_ICON = "/images/icon.png";
 	public static final String CONFIG_FILENAME = "config.properties";
+	public static final String TIMEZONE = "Asia/Manila";
 
 	public static final String CONF_HOST = "HOST";
 	public static final String CONF_APPID = "APP";
@@ -33,6 +43,11 @@ public class App extends Application implements FingerprintService.ReadEventList
 
 	public static final String BASE_URL_PATH = "/api/java";
 	public static final String URI_AUTH = "/auth";
+	public static final String URI_FP_REG = "/register";
+	public static final String URI_FINGERPRINTS = "/fingerprints";
+	public static final String URI_CONFIRM_CONNECTION = "/confirm-connection";
+	public static final String URI_ATTENDANCE = "/attendance";
+	public static final String URI_NO_MATCH = "/no-match";
 
 	public static final String HEADER_APP = "SCANNER-APP";
 	public static final String HEADER_LOCAL = "SCANNER-LOCAL";
@@ -43,7 +58,8 @@ public class App extends Application implements FingerprintService.ReadEventList
 	static FXMLLoader fxmlLoader;
 	static Authenticator authenticator;
 	static FXTrayIcon trayIcon;
-	static FingerprintService scanner = null;
+	static Scanner scanner = null;
+	static FingerprintLibrary library = null;
 	static FXML_Details_Controller ui;
 
 	@Override
@@ -69,8 +85,12 @@ public class App extends Application implements FingerprintService.ReadEventList
 
 			if (scanner == null) {
 				// sdk only allows one instance per app
-				scanner = new FingerprintService();
-				scanner.addReadEventListener(this);
+				scanner = new Scanner();
+				scanner.addListener(this);
+			}
+
+			if (library == null) {
+				library = new FingerprintLibrary();
 			}
 
 			Config config = new Config(CONFIG_FILENAME);
@@ -78,6 +98,8 @@ public class App extends Application implements FingerprintService.ReadEventList
 
 			authenticator = new Authenticator(config);
 			authenticator.checkHost(); // verify host
+
+			library.initialize();
 
 			// check for stored app id in the local config
 			if (appID == null) {
@@ -93,17 +115,98 @@ public class App extends Application implements FingerprintService.ReadEventList
 	}
 
 	@Override
-	public void readEventOccured(FingerprintService.ReadEvent event) {
+	public void actionPerformed(FingerprintEvent event) {
 		try {
-			String base64Data = event.getBase64Template(); // base64 encoded from template
-			int retValue = event.getRetValue(); // return value of the scan
-			byte[] template = event.getTemplate(); // original fingerprint template
+			byte[] template = event.getTemplate();
 
-			ui.debug(base64Data);
+			if (library == null)
+				return;
 
+			// registration process
+			if (library.registrationMode()) {
+				FormDataBuilder formData = new FormDataBuilder();
+				byte[] registeredTemplate = null;
+
+				try {
+					registeredTemplate = library.registerTemplate(template);
+
+					if (registeredTemplate == null) {
+						// continue registration
+						int index = library.getRegisterIndex();
+						int count = FingerprintLibrary.REG_TEMPLATE_COUNT - (index + 1);
+
+						formData.append("index", String.valueOf(index));
+						formData.append("message",
+								"Press the same finger again " + count + " more time" + (count > 1 ? "s" : ""));
+					}
+				} catch (AppException.FingerprintRegistrationException e) {
+					System.err.println(e.getLocalizedMessage());
+
+					if (e.getMessage().equals("Incorrect finger")) {
+						formData.append("index", "-1");
+						formData.append("message", "Matching error. Please press the same finger 3 times");
+					} else if (e.getMessage().equals("Already exists")) {
+						formData.append("index", "-1");
+						formData.append("message", "Fingerprint is already registered. Please use a different one");
+					} else
+						throw e;
+				}
+
+				if (registeredTemplate != null) {
+					// requirements acquired
+					formData.append("id", String.valueOf(library.getRegistrationID()));
+					formData.append("base64", FingerprintLibrary.toBase64(registeredTemplate));
+					formData.append("index", "3");
+					formData.append("message", "save");
+				}
+
+				// send to api
+				HttpService.post(URI_FP_REG, formData).onSuccess(response -> {
+					// saved successfully
+					if (201 == response.statusCode()) {
+						library.saveRegisteredTemplate(); // save to local db
+						library.startRegistration(0); // reset process
+						// Notif.info("Fingerprint has been registered successfully!");
+					}
+				}).onError(err -> {
+					System.err.println("response " + err.getResponse().body());
+				}).executeAsync();
+			} else {
+				try {
+					// normal scanning
+					JSONObject data = library.identify(template);
+
+					int id = data.getInt("id");
+					int score = data.getInt("score");
+
+					FormDataBuilder formData = new FormDataBuilder();
+					formData.append("id", String.valueOf(id));
+					formData.append("score", String.valueOf(score));
+					formData.append("timestamp", getCurrentTimestamp());
+
+					// send to server
+					HttpService.post(URI_ATTENDANCE, formData).onError(err -> {
+						System.err.println(err.getResponse().body());
+						System.err.println("Attendance response error: " + err.getLocalizedMessage());
+					}).executeAsync();
+
+					// Notif.info("Attendance has been verified");
+				} catch (Exception e) {
+					HttpService.get(URI_NO_MATCH).executeAsync(); // notify client
+					System.err.println("No match: " + e.getLocalizedMessage());
+				}
+			}
 		} catch (Exception e) {
-			e.printStackTrace();
+			System.err.println("Scan error: " + e.getLocalizedMessage());
 		}
+	}
+
+	public static String getCurrentTimestamp() {
+		Instant now = Instant.now();
+		// Convert Instant to LocalDateTime in UTC (or use system default zone)
+		LocalDateTime dateTime = LocalDateTime.ofInstant(now, ZoneId.of(TIMEZONE));
+		// Format it to a MySQL-compatible string
+		return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
 	}
 
 	public static void showProgressDialog(Parent root) {
@@ -205,7 +308,11 @@ public class App extends Application implements FingerprintService.ReadEventList
 	public static void exitApp() {
 		Platform.runLater(() -> {
 			if (scanner != null) {
-				scanner.close();
+				if (library != null) {
+					library.close();
+				}
+
+				scanner.releaseScanner();
 				App.Notif.show("Scanner device has been closed.");
 			}
 
@@ -219,7 +326,10 @@ public class App extends Application implements FingerprintService.ReadEventList
 
 	public static void restartApp() {
 		if (scanner != null) {
-			scanner.close();
+			if (library != null) {
+				library.close();
+			}
+			scanner.releaseScanner();
 		}
 
 		// disconnect from websockets first
@@ -233,13 +343,14 @@ public class App extends Application implements FingerprintService.ReadEventList
 		authenticator = null;
 		scanner = null;
 		ui = null;
+		library = null;
 
 		Platform.runLater(() -> {
 			try {
 				// Close the current stage
 				stage.close();
 
-				Thread.sleep(3000);
+				Thread.sleep(1000);
 
 				// Relaunch the application
 				App mainApp = new App();
