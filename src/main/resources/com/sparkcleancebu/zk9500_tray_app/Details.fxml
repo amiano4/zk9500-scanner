@@ -6,7 +6,7 @@
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
 
-<VBox maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="450.0" spacing="10.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.sparkcleancebu.zk9500_tray_app.FXML_Details_Controller">
+<VBox maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefWidth="450.0" spacing="10.0" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.sparkcleancebu.zk9500_tray_app.FXML_Details_Controller">
    <padding>
       <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
    </padding>
@@ -57,26 +57,6 @@
             <StackPane alignment="CENTER_LEFT" HBox.hgrow="ALWAYS">
                <children>
                   <Label fx:id="host" />
-               </children>
-            </StackPane>
-         </children>
-      </HBox>
-      <HBox maxWidth="1.7976931348623157E308">
-         <children>
-            <Label prefWidth="100.0" text="Last Scan" />
-            <StackPane alignment="CENTER_LEFT" HBox.hgrow="ALWAYS">
-               <children>
-                  <Label fx:id="lastScan" />
-               </children>
-            </StackPane>
-         </children>
-      </HBox>
-      <HBox VBox.vgrow="ALWAYS">
-         <children>
-            <Label prefWidth="100.0" text="Debugging" />
-            <StackPane alignment="TOP_LEFT" prefHeight="140.0" prefWidth="313.0">
-               <children>
-                  <Label fx:id="debugging" alignment="TOP_LEFT" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" wrapText="true" StackPane.alignment="TOP_LEFT" />
                </children>
             </StackPane>
          </children>
