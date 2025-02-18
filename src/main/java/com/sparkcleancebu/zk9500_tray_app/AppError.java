@@ -8,9 +8,14 @@ public class AppError {
 
 		if (ex instanceof AppException.ScannerInitializationException) {
 			// scanner related
-			App.closeWindow();
-			App.Notif.error(errorMessage);
-			App.exitApp();
+			try {
+				App.Notif.error(errorMessage);
+				App.closeWindow();
+				Thread.sleep(3000);
+				App.exitApp();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
 		} else if (ex instanceof AppException.ConfigException) {
 			// config file
 			App.Notif.error(errorMessage);
