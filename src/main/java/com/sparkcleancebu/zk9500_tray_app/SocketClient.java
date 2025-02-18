@@ -175,7 +175,7 @@ public class SocketClient {
 		if (session != null && session.isOpen()) {
 			try {
 				disconnected = true;
-				session.close(new CloseReason(CloseReason.CloseCodes.NORMAL_CLOSURE, "Client disconnected"));
+				session.close(new CloseReason(CloseReason.CloseCodes.NORMAL_CLOSURE, "Manual disconnection"));
 				System.out.println("WebSocket disconnected successfully.");
 			} catch (IOException e) {
 				e.printStackTrace();
