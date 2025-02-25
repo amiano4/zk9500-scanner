@@ -97,10 +97,26 @@ public class Library {
 
 	/**
 	 * Verifies a fingerprint template during the registration process.
+	 * <p>
+	 * This method is responsible for processing and validating a fingerprint scan during registration. It ensures that:
+	 * <ul>
+	 * <li>The system is in registration mode.</li>
+	 * <li>The fingerprint scan does not exceed the allowed registration attempts.</li>
+	 * <li>The fingerprint matches previous scans for consistency.</li>
+	 * <li>The fingerprint is not already registered in the system.</li>
+	 * </ul>
+	 * </p>
 	 *
-	 * @param template The fingerprint template to register.
-	 * @return `0` if the template is successfully registered, an error code otherwise.
-	 * @throws Exception If registration mode is disabled or an error occurs during registration.
+	 * @param template The fingerprint template to verify and register.
+	 * @return An {@code Object} representing the verification result:
+	 *         <ul>
+	 *         <li>{@code 0} if registration is successful.</li>
+	 *         <li>{@code ERR_EXCEED} if the registration limit is exceeded.</li>
+	 *         <li>{@code ERR_NOT_MATCH} if the template does not match the previous scan.</li>
+	 *         <li>{@code ERR_DUPLICATE} if the fingerprint is already registered.</li>
+	 *         <li>Register index (integer) if the scan is accepted as part of registration.</li>
+	 *         </ul>
+	 * @throws Exception If registration mode is disabled or an error occurs during the process.
 	 */
 	public Object verifyTemplate(byte[] template) throws Exception {
 		if (!isRegisterMode) {
@@ -245,7 +261,7 @@ public class Library {
 		int[] score = new int[1];
 
 		if (FingerprintSensorEx.DBIdentify(dbHandle, template, id, score) != 0) {
-			throw new Exception("Failed to identify the fingerprint data");
+			throw new Exception("Failed to identify the fingerprint");
 		}
 
 		JSONObject data = new JSONObject();
