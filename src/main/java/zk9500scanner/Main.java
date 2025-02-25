@@ -52,7 +52,7 @@ public class Main {
 				log.info("Initiating fingerprint registration process!");
 				library.startRegistration(id);
 
-				// Notify POS that registration has started
+				// Notify client that registration has started
 				JSONObject json = new JSONObject();
 				json.put("event", "registration-start");
 				socket.send(json);
@@ -92,10 +92,15 @@ public class Main {
 					int score = data.getInt("score");
 
 					log.info("Biometric detected [ID: " + id + ", SCORE: " + score + "]");
-
 					socket.send(data);
-
 				} catch (Exception e) {
+					JSONObject json = new JSONObject();
+					json.put("event", "biometric-error");
+					json.put("message", e.getMessage());
+
+					log.warning("Biometric error: " + e.getMessage());
+					// send error to client
+					socket.send(json);
 				}
 			}
 		};
@@ -119,12 +124,12 @@ public class Main {
 		if (result instanceof Integer) {
 			int code = (int) result;
 
-			if (code >= 0) { // registration in progress
+			if (code >= 0 && code < Library.REG_TEMPLATE_COUNT - 1) { // registration in progress
 				JSONObject json = new JSONObject();
 				json.put("event", "registration-ongoing");
 				json.put("step", code + 1);
 
-				// send status to POS client
+				// send status
 				socket.send(json);
 			} else if (code == Library.REG_TEMPLATE_COUNT - 1) {
 				// completed the regisration requirements...
@@ -139,7 +144,7 @@ public class Main {
 					socket.send(json); // send fingerprint data
 
 					// reset process
-					library.resetRegistration();
+					library.startRegistration(0);
 				}
 			} else // handle error
 				handleRegistrationError(code);
@@ -177,7 +182,7 @@ public class Main {
 			break;
 		}
 
-		// notify POS client
+		// notify client
 		socket.send(json);
 	}
 
