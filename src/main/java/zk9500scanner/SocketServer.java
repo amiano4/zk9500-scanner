@@ -70,7 +70,6 @@ public class SocketServer extends WebSocketServer {
 	public void send(JSONObject json) {
 		String message = json.toString();
 		broadcast(message);
-		Main.log.info("Sent: " + message);
 	}
 
 	public boolean isRunning() {
