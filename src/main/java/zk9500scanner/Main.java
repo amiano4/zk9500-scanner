@@ -35,7 +35,7 @@ public class Main {
 	public Main() {
 		int port = Integer.parseInt(System.getProperty("wsport", "1234")); // Default port if not set
 
-		socket = new SocketServer(new InetSocketAddress("localhost", port));
+		socket = new SocketServer(new InetSocketAddress("0.0.0.0", port));
 		scanner = new Scanner();
 		library = new Library();
 
@@ -246,7 +246,7 @@ public class Main {
 
 		String timestamp = dateFormat.format(new Date());
 		log.addHandler(new FileLogger("logs/zk9500_" + timestamp + ".log"));
-		log.setLevel(Level.ALL);
+		log.setLevel(Level.OFF); // Disable logging
 	}
 
 	/**
